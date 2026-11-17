@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -8,21 +8,50 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
           cache: pip
-      - run:  pip install -r requirements.txt
+
+      - run: pip install -r requirements.txt
+
       - run: python -m pytest -v
+
   docker:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v5
+
       - run: docker compose up -d --build
+
       - run: curl -f --retry 10 --retry-connrefused --retry-delay 2 http://localhost/health
+
       - if: always()
         run: docker compose logs
+
+  deploy:
+    needs: [test, docker]
+    if: github.event_name = 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, production]
+    concurrency:
+      group: production
+      cancel-in-progress: : false
+    defaults:
+      run:
+        working-directory: /home/ubuntu/cicd-lab
+    steps:
+      - run: git pull --ff-only
+
+      - run: docker compose up -d --build
+
+      - run: curl -f --retry 10 --retry-connrefused --retry-delay 2 http://localhost/health
+
+      - run: docker image prune -f
+
+      - if: failure()
+        run: docker compose logs --tail 50
