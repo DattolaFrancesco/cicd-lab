@@ -49,7 +49,7 @@ jobs:
 
       - run: docker compose up -d --build
 
-      - run: curl -f --retry 10 --retry-connrefused --retry-delay 2 http://localhost/health
+      - run: curl -f --retry 10 --retry-all-errors --retry-delay 2 http://localhost/health
 
       - run: docker image prune -f
 
